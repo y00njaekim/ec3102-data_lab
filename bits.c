@@ -182,7 +182,33 @@ int logicalShift(int x, int n) {
  *   Rating: 4
  */
 int bitCount(int x) {
-  return 2;
+
+  int count = 0x11111111;
+  int x0 = x & count;
+  x = x >> 1;
+  int x1 = x & count;
+  x = x >> 1;
+  int x2 = x & count;
+  x = x >> 1;
+  int x3 = x & count;
+  int sum = x0 + x1 + x2 + x3;
+  int mask = 0x0000000F;
+
+  int res = 0;
+  res = res + (sum & mask);
+  sum = sum >> 4;
+  res = res + (sum & mask);
+  sum = sum >> 4;
+  res = res + (sum & mask);
+  sum = sum >> 4;
+  res = res + (sum & mask);
+  sum = sum >> 4;
+  res = res + (sum & mask);
+  sum = sum >> 4;
+  res = res + (sum & mask);
+  sum = sum >> 4;
+  res = res + (sum & mask);
+  return res;
 }
 /* 
  * bang - Compute !x without using !
@@ -201,7 +227,8 @@ int bang(int x) {
  *   Rating: 1
  */
 int tmin(void) {
-  return 2;
+  int res = 0x01 << 31;
+  return res;
 }
 /* 
  * fitsBits - return 1 if x can be represented as an 
