@@ -284,7 +284,9 @@ int isPositive(int x) {
  *   Rating: 3
  */
 int isLessOrEqual(int x, int y) {
-  return 2;
+  int minus_x = ~x + 1;
+  int res = y + x;
+  return !!res;
 }
 /*
  * ilog2 - return floor(log base 2 of x), where x > 0
@@ -334,5 +336,22 @@ unsigned float_i2f(int x) {
  *   Rating: 4
  */
 unsigned float_twice(unsigned uf) {
-  return 2;
+  int sign_mask = 0x80000000;
+  int exp_mask = 0x7F800000;
+  int man_mask = 0x007FFFFF;
+
+  if((exp_mask & uf) == exp_mask) {
+    // return 3;
+    return uf;
+  }
+  else if(!(exp_mask & uf)) {
+    // return 2;
+    return (uf & sign_mask) | ((uf & man_mask) << 1);
+  }
+  else {
+    // return 1;
+    return (uf & (sign_mask | man_mask)) | ((uf + 0x00800000) & exp_mask);
+  }
+
+  return uf;
 }
