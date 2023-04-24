@@ -182,33 +182,16 @@ int logicalShift(int x, int n) {
  *   Rating: 4
  */
 int bitCount(int x) {
-
-  int count = 0x11111111;
-  int x0 = x & count;
-  x = x >> 1;
-  int x1 = x & count;
-  x = x >> 1;
-  int x2 = x & count;
-  x = x >> 1;
-  int x3 = x & count;
-  int sum = x0 + x1 + x2 + x3;
-  int mask = 0x0000000F;
-
-  int res = 0;
-  res = res + (sum & mask);
-  sum = sum >> 4;
-  res = res + (sum & mask);
-  sum = sum >> 4;
-  res = res + (sum & mask);
-  sum = sum >> 4;
-  res = res + (sum & mask);
-  sum = sum >> 4;
-  res = res + (sum & mask);
-  sum = sum >> 4;
-  res = res + (sum & mask);
-  sum = sum >> 4;
-  res = res + (sum & mask);
-  return res;
+    int sum = 0;
+    int count = 0x11111111;
+    int mask = 0x00000F0F;
+    sum = x & count;
+    sum = sum + ((x >> 1) & count);
+    sum = sum + ((x >> 2) & count);
+    sum = sum + ((x >> 3) & count);
+    sum = sum + (sum >> 16);
+    sum = (sum & mask) + ((sum >> 4) & mask);
+    return (sum & 0xFF) + (sum >> 8);
 }
 /* 
  * bang - Compute !x without using !
@@ -218,7 +201,8 @@ int bitCount(int x) {
  *   Rating: 4 
  */
 int bang(int x) {
-  return 2;
+    int res = ((x | (~x + 1)) >> 31) + 1;
+    return res;
 }
 /* 
  * tmin - return minimum two's complement integer 
@@ -240,7 +224,10 @@ int tmin(void) {
  *   Rating: 2
  */
 int fitsBits(int x, int n) {
-  return 2;
+    int change = 32 + (~n + 1);
+    int target = (x << change) >> change;
+    int res = !(target ^ x);
+    return res;
 }
 /* 
  * divpwr2 - Compute x/(2^n), for 0 <= n <= 30
@@ -251,7 +238,9 @@ int fitsBits(int x, int n) {
  *   Rating: 2
  */
 int divpwr2(int x, int n) {
-    return 2;
+    int negative = x >> 31;
+    int value = x + (negative & ((1 << n) + negative));
+    return value >> n;
 }
 /* 
  * negate - return -x 
@@ -284,9 +273,11 @@ int isPositive(int x) {
  *   Rating: 3
  */
 int isLessOrEqual(int x, int y) {
-  int minus_x = ~x + 1;
-  int res = y + x;
-  return !!res;
+  int x_sign = (x >> 31) & 1;
+  int y_sign = (y >> 31) & 1;
+  int is_sign_diff = x_sign^y_sign;
+  int value_sign = ((~x + 1) + y) >> 31; // overflow check
+  return (is_sign_diff & x_sign) | (!(is_sign_diff | value_sign));
 }
 /*
  * ilog2 - return floor(log base 2 of x), where x > 0
@@ -296,7 +287,24 @@ int isLessOrEqual(int x, int y) {
  *   Rating: 4
  */
 int ilog2(int x) {
-  return 2;
+    int sum = 0;
+    int count = 0x00001111;
+    int mask = 0x00000F0F;
+   
+    x = x | (x >> 1);
+    x = x | (x >> 2);
+    x = x | (x >> 4);
+    x = x | (x >> 8);
+    x = x | (x >> 16);
+
+    count = count | (count << 16);
+    sum = sum + (x & count);
+    sum = sum + ((x >> 1) & count);
+    sum = sum + ((x >> 2) & count);
+    sum = sum + ((x >> 3) & count);
+    sum = sum + (sum >> 16);
+    sum = (sum & mask) + ((sum >> 4) & mask);
+    return ((sum & 0x000000FF) + (sum >> 8)) + ~(0x00000000);
 }
 /* 
  * float_neg - Return bit-level equivalent of expression -f for
@@ -310,8 +318,15 @@ int ilog2(int x) {
  *   Rating: 2
  */
 unsigned float_neg(unsigned uf) {
- return 2;
+    int sign_mask = 0x80000000;
+    int exp_mask = 0x7F800000;
+    int man_mask = 0x007FFFFF;
+
+    if(((uf & exp_mask) == 0x7F800000) && (uf & man_mask))
+        return uf;
+    return uf ^ sign_mask;
 }
+
 /* 
  * float_i2f - Return bit-level equivalent of expression (float) x
  *   Result is returned as unsigned int, but
@@ -322,7 +337,43 @@ unsigned float_neg(unsigned uf) {
  *   Rating: 4
  */
 unsigned float_i2f(int x) {
-  return 2;
+    int sign_mask = 0x80000000;
+    int exp_mask = 0x7F800000;
+    int man_mask = 0x007FFFFF;
+
+    int sign = x & sign_mask;
+    int man = x & man_mask;
+    int bit, exp, round;
+    if(x == 0)
+        return 0;
+    else if(x == 0x80000000){ 
+        exp = 158;
+        return 0xCF000000;
+    }
+    else{
+        if(sign)
+            x = -x;
+        bit = 1;
+        while((x>>bit) != 0)
+            bit++;
+        bit--;
+        exp = bit + 127;
+
+        x = x << (31 - bit);
+        man = man_mask & (x >> 8);
+
+        if(bit > 23){
+            round = x & 0xFF;
+            if((round > 128) || ((round == 128) && (man & 1))){
+                man++;
+                if(man >> 23){
+                    exp++;
+                    man = 0;
+                }
+            }
+        }
+    }
+    return sign | (exp << 23) | man;
 }
 /* 
  * float_twice - Return bit-level equivalent of expression 2*f for
@@ -341,15 +392,12 @@ unsigned float_twice(unsigned uf) {
   int man_mask = 0x007FFFFF;
 
   if((exp_mask & uf) == exp_mask) {
-    // return 3;
     return uf;
   }
   else if(!(exp_mask & uf)) {
-    // return 2;
     return (uf & sign_mask) | ((uf & man_mask) << 1);
   }
   else {
-    // return 1;
     return (uf & (sign_mask | man_mask)) | ((uf + 0x00800000) & exp_mask);
   }
 
